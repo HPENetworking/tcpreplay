@@ -206,12 +206,6 @@ main(int argc, char **argv)
 
     pkts_scheduled = setup_sched(sched); /* Returns number of packets in schedule*/
 
-    /* Set up the schedule struct to be relative numbers rather than absolute*/
-    for (i = 0; i < num_packets; i++) {
-        sched[i].exp_rseq = 0;
-        sched[i].exp_rack = 0;
-    }
-
     relative_sched(sched, sched[1].exp_rseq, num_packets);
     printf("Packets Scheduled %u\n", pkts_scheduled);
 
@@ -422,14 +416,10 @@ relative_sched(struct tcp_sched *schedule, u_int32_t first_rseq, int num_packets
             if (schedule[i].tcphdr)
                 schedule[i].tcphdr->th_seq = htonl(schedule[i].curr_lseq); /* Edit the actual packet header data */
             fix_all_checksum_liveplay(schedule[i].iphdr);               /* Fix the checksum */
-            schedule[i].exp_rseq = schedule[i].exp_rseq - first_rseq;
-            schedule[i].exp_rack = schedule[i].exp_rack - first_lseq;
-            schedule[i].exp_rack = schedule[i].exp_rack + lseq_adjust;
-        } else if (schedule[i].remote) {
-            schedule[i].exp_rseq = schedule[i].exp_rseq - first_rseq;  /* Fix expected remote SEQ to be relative */
-            schedule[i].exp_rack = schedule[i].exp_rack - first_lseq;  /* Fix expected remote ACK to be relative*/
-            schedule[i].exp_rack = schedule[i].exp_rack + lseq_adjust; /* Fix expected remote ACK to be absolute */
         }
+        schedule[i].exp_rseq = schedule[i].exp_rseq - first_rseq;  /* Fix expected remote SEQ to be relative */
+        schedule[i].exp_rack = schedule[i].exp_rack - first_lseq;  /* Fix expected remote ACK to be relative */
+        schedule[i].exp_rack = schedule[i].exp_rack + lseq_adjust; /* Fix expected remote ACK to be absolute */
     }
 
     return SUCCESS;
@@ -567,7 +557,6 @@ setup_sched(struct tcp_sched *schedule)
             schedule[i].curr_lack = ntohl(schedule[i].tcphdr->th_ack);
             schedule[i].exp_rseq = schedule[i - 1].exp_rseq; /* Keep track of previous remote seq & ack #s*/
             schedule[i].exp_rack = schedule[i - 1].exp_rack;
-
         }
 
         /* Remote Packet operations */

@@ -18,7 +18,7 @@
 #define REMOTE_IP_MATCH 2
 #define NO_MATCH 0
 #define PCAP_OPEN_ERROR (-1)
-#define TIMEOUT_ms 10000
+#define TIMEOUT_ms 600
 #define PROMISC_OFF 0
 #define BUFSIZ_PLUS BUFSIZ
 #define ALARM_TIMEOUT 10
