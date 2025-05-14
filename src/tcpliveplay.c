@@ -114,8 +114,9 @@ int rewrite(input_addr *new_remoteip,
             input_addr *myip,
             struct mac_addr *mymac,
             char *file,
-            unsigned int new_src_port);
-int setup_sched(struct tcp_sched *schedule);
+            unsigned int new_src_port,
+            char *newfile);
+int setup_sched(struct tcp_sched *schedule, char *pcap_file);
 int relative_sched(struct tcp_sched *schedule, u_int32_t first_rseq, int num_packets);
 int fix_all_checksum_liveplay(ipv4_hdr *iphdr);
 int compip(input_addr *lip, input_addr *rip, input_addr *pkgip);
@@ -193,9 +194,16 @@ main(int argc, char **argv)
     if (extip(new_rip_ptr, &new_remoteip) == ERROR)
         errx(-1, "failed to parse IP address %s\n", new_rip_ptr);
 
+    pid_t process_id = getpid();
+    //printf("The process ID is: %d\n", process_id);
+    // Save to file newfile_<PID>.pcap
+    char pcap_file[32];
+    snprintf(pcap_file, 32, "newfile_%d.pcap", process_id);
+    //printf("The pcap_file name is: %s\n", pcap_file);
+
     /* Rewrites the given "*.pcap" file with all the new parameters and returns the number of packets */
     /* that need to be replayed */
-    num_packets = rewrite(&new_remoteip, &new_remotemac, &myip, &mymac, argv[2], new_src_port);
+    num_packets = rewrite(&new_remoteip, &new_remotemac, &myip, &mymac, argv[2], new_src_port, pcap_file);
     if (num_packets < 2)
         errx(-1, "Unable to rewrite PCAP file %s\n", argv[2]);
 
@@ -204,15 +212,15 @@ main(int argc, char **argv)
     if (!sched)
         err(-1, "out of memory\n");
 
-    pkts_scheduled = setup_sched(sched); /* Returns number of packets in schedule*/
+    pkts_scheduled = setup_sched(sched, pcap_file); /* Returns number of packets in schedule*/
 
     relative_sched(sched, sched[1].exp_rseq, num_packets);
     printf("Packets Scheduled %u\n", pkts_scheduled);
 
     /* Open socket for savedfile traffic to be sent*/
-    local_handle = pcap_open_offline("newfile.pcap", errbuf); /*call pcap library function*/
+    local_handle = pcap_open_offline(pcap_file, errbuf); /*call pcap library function*/
     if (local_handle == NULL) {
-        fprintf(stderr, "Couldn't open pcap file %s: %s\n", "newfile.pcap", errbuf);
+        fprintf(stderr, "Couldn't open pcap file %s: %s\n", pcap_file, errbuf);
         free(sched);
         return (2);
     }
@@ -329,7 +337,7 @@ main(int argc, char **argv)
 
     pcap_close(live_handle);
     sendpacket_close(sp);   /* Close Send socket*/
-    remove("newfile.pcap"); /* Remote the rewritten file that was created*/
+    remove(pcap_file); /* Remote the rewritten file that was created*/
 
     for (k = 0; k < pkts_scheduled; k++) {
         retransmissions += sched[k].sent_counter;
@@ -433,7 +441,7 @@ relative_sched(struct tcp_sched *schedule, u_int32_t first_rseq, int num_packets
  */
 
 int
-setup_sched(struct tcp_sched *schedule)
+setup_sched(struct tcp_sched *schedule, char *pcap_file)
 {
     input_addr sip, dip;            /* Source & Destination IP */
     input_addr local_ip, remote_ip; /* ip address of client and server*/
@@ -458,10 +466,10 @@ setup_sched(struct tcp_sched *schedule)
 
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    local_handle = pcap_open_offline("newfile.pcap", errbuf); /*call pcap library function*/
+    local_handle = pcap_open_offline(pcap_file, errbuf); /*call pcap library function*/
 
     if (local_handle == NULL) {
-        fprintf(stderr, "Couldn't open pcap file %s: %s\n", "newfile.pcap", errbuf);
+        fprintf(stderr, "Couldn't open pcap file %s: %s\n", pcap_file, errbuf);
         return (2);
     }
 
@@ -866,9 +874,9 @@ rewrite(input_addr *new_remoteip,
         input_addr *myip,
         struct mac_addr *mymac,
         char *file,
-        unsigned int new_src_port)
+        unsigned int new_src_port,
+        char *newfile)
 {
-    char *newfile = "newfile.pcap";
     input_addr local_ip;
     input_addr remote_ip;
     const u_char *packet;
